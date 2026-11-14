@@ -1,12 +1,10 @@
 """
-deep_learning_water.py
+deep_learning_blabla.py
 Tugas: Pertemuan 11 - Deep Learning (INDIVIDU)
 Nama : Nabila Risha Juliana
 NIM  : 434241017
-Dataset: Water Potability (dari Kaggle)
+Dataset: BlaBla.xlsx
 
-Program ini membangun model Neural Network (Sequential MLP)
-untuk klasifikasi biner kelayakan air minum (Potability).
 """
 
 # ========================================================================
@@ -20,7 +18,7 @@ import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+from sklearn.metrics import confusion_matrix, classification_report
 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Input
@@ -35,11 +33,11 @@ tf.random.set_seed(42)
 # 2. LOAD DATASET
 # ========================================================================
 base_dir = os.path.dirname(os.path.abspath(__file__))
-data_path = os.path.join(base_dir, "data", "water_potability.csv")
-df = pd.read_csv(data_path)
+data_path = os.path.join(base_dir, "data/BlaBla.xlsx")
+df = pd.read_excel(data_path)
 
 print("=" * 65)
-print("DEEP LEARNING - KLASIFIKASI KUALITAS AIR (Water Potability)")
+print("DEEP LEARNING - KLASIFIKASI BINER (Dataset BlaBla)")
 print("=" * 65)
 print(f"\n[1] Dataset dimuat")
 print(f"    Shape: {df.shape[0]} baris x {df.shape[1]} kolom")
@@ -49,48 +47,94 @@ print(df.head())
 
 
 # ========================================================================
-# 3. PISAHKAN FITUR (X) DAN LABEL (y)
+# 3. PISAHKAN FITUR DAN LABEL
 # ========================================================================
-# Variabel Input  : 9 fitur numerik (pH, Hardness, Solids, dst)
-# Variabel Output : Potability (0 = tidak layak, 1 = layak minum)
-
-X = df.drop(columns=['Potability'])
-y = df['Potability']
-
-print(f"\n[2] Pemisahan Fitur (X) dan Label (y)")
-print(f"    X (fitur) : {X.shape} -> 9 fitur numerik")
-print(f"    y (label) : {y.shape} -> target biner (0/1)")
-print(f"\n    Distribusi kelas y:")
-print(f"    {dict(y.value_counts())}")
-print(f"    Ratio: {y.value_counts(normalize=True).mul(100).round(2).to_dict()} %")
+# Variabel Input  : Umur (hasil encoding) + B sampai M = 13 fitur
+# Variabel Output : N (target biner 0/1)
+print(f"\n[2] Pisahkan Fitur dan Label")
+print(f"    Variabel Input  : Umur, B, C, D, E, F, G, H, I, J, K, L, M (13 fitur)")
+print(f"    Variabel Output : N")
 
 
 # ========================================================================
-# 4. (SKIP) ENCODING - Dataset Water Potability tidak punya fitur kategorikal
+# 4. ENCODING UMUR SESUAI MODUL
+# Rules:
+#   1 = <= 20
+#   2 = >= 21 dan <= 30
+#   3 = >= 31 dan <= 40
+#   4 = >= 41 dan <= 50
+#   5 = > 50
 # ========================================================================
-# Catatan: Step encoding 'Umur' di modul tidak berlaku untuk water potability,
-# karena seluruh fitur sudah bertipe numerik kontinu.
-print(f"\n[3] Encoding: SKIP (semua fitur sudah numerik, tidak perlu encoding)")
+print(f"\n[3] Encoding UMUR_TAHUN ke Kode Umur")
+
+def encode_umur(umur):
+    """Encoding umur sesuai ketentuan modul Pertemuan 11."""
+    umur = int(umur)
+    if umur <= 20:
+        return 1
+    elif umur <= 30:
+        return 2
+    elif umur <= 40:
+        return 3
+    elif umur <= 50:
+        return 4
+    else:
+        return 5
+
+# Pastikan UMUR_TAHUN bertipe numerik, isi NaN dengan median kalau ada
+df['UMUR_TAHUN'] = pd.to_numeric(df['UMUR_TAHUN'], errors='coerce')
+if df['UMUR_TAHUN'].isna().any():
+    n_bad = df['UMUR_TAHUN'].isna().sum()
+    median_umur = df['UMUR_TAHUN'].median()
+    df['UMUR_TAHUN'] = df['UMUR_TAHUN'].fillna(median_umur)
+    print(f"    Catatan: ditemukan {n_bad} nilai non-numerik di UMUR_TAHUN, diisi median ({median_umur})")
+
+df['Umur_Encoded'] = df['UMUR_TAHUN'].apply(encode_umur)
+
+print(f"    Rules Encoding:")
+print(f"        1 = umur <= 20")
+print(f"        2 = umur 21-30")
+print(f"        3 = umur 31-40")
+print(f"        4 = umur 41-50")
+print(f"        5 = umur > 50")
+
+print(f"\n    Contoh hasil encoding (5 sampel):")
+print(df[['UMUR_TAHUN', 'Umur_Encoded', 'A']].head())
+
+print(f"\n    Distribusi kode umur:")
+print(df['Umur_Encoded'].value_counts().sort_index().to_string())
+
+# Validasi: pastikan kolom Umur_Encoded sama dengan kolom A (jika ada)
+print(f"\n    Validasi dengan kolom A: {(df['Umur_Encoded'] == df['A']).sum()}/{len(df)} baris cocok")
 
 
 # ========================================================================
 # 5. PREPROCESSING DATA
 # ========================================================================
+# Pisahkan input dan output
+X = df[['Umur_Encoded', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']].copy()
+y = df['N']
+
 print(f"\n[4] Preprocessing Data")
+print(f"    X (input) : {X.shape} -> 13 fitur")
+print(f"    y (output): {y.shape} -> target biner (0/1)")
+print(f"\n    Distribusi kelas target N:")
+print(f"    {dict(y.value_counts())}")
+print(f"    Rasio: {y.value_counts(normalize=True).mul(100).round(2).to_dict()} %")
 
 # a. Cek Missing Value
 print(f"\n    a. Cek Missing Value:")
-missing = X.isnull().sum()
-print(missing[missing > 0])
+total_nan = X.isnull().sum().sum() + y.isnull().sum()
+print(f"       Total missing di X : {X.isnull().sum().sum()}")
+print(f"       Total missing di y : {y.isnull().sum()}")
+if total_nan > 0:
+    X = X.fillna(X.median())
+    print(f"       -> Missing diisi dengan median")
+else:
+    print(f"       -> Tidak ada missing value")
 
-# Isi missing value dengan median
-X = X.fillna(X.median())
-print(f"\n    -> Missing value diisi dengan MEDIAN tiap kolom")
-print(f"    -> Total missing value sekarang: {X.isnull().sum().sum()}")
-
-# b. Handle Outlier dengan IQR Clipping
-print(f"\n    b. Handle Outlier (IQR Clipping):")
-outlier_summary = {}
+# b. Cek Outlier dengan IQR (hanya untuk fitur Umur_Encoded karena B-M sudah 0/1)
+print(f"\n    b. Cek Outlier (IQR):")
 for col in X.columns:
     Q1 = X[col].quantile(0.25)
     Q3 = X[col].quantile(0.75)
@@ -98,22 +142,22 @@ for col in X.columns:
     lower = Q1 - 1.5 * IQR
     upper = Q3 + 1.5 * IQR
     n_outlier = ((X[col] < lower) | (X[col] > upper)).sum()
-    outlier_summary[col] = n_outlier
-    X[col] = X[col].clip(lower, upper)
-
-for col, n in outlier_summary.items():
-    print(f"       {col:25s}: {n} outlier di-clip")
+    if n_outlier > 0:
+        print(f"       {col:15s}: {n_outlier} outlier (di-clip ke batas IQR)")
+        X[col] = X[col].clip(lower, upper)
+    else:
+        print(f"       {col:15s}: 0 outlier")
 
 # c. Feature Scaling dengan StandardScaler
 print(f"\n    c. Feature Scaling (StandardScaler):")
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
-print(f"    -> Semua fitur di-standardize (mean=0, std=1)")
-print(f"    -> Shape X_scaled: {X_scaled.shape}")
+print(f"       -> Semua fitur di-standardize (mean=0, std=1)")
+print(f"       -> Shape X_scaled: {X_scaled.shape}")
 
 
 # ========================================================================
-# 6. SPLIT DATA (80% train, 20% test)
+# 6. SPLIT DATA (80% training, 20% testing)
 # ========================================================================
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.2, stratify=y, random_state=42
@@ -132,10 +176,10 @@ print(f"    y_test  : {y_test.shape} -> {dict(y_test.value_counts())}")
 print(f"\n[6] Bangun Arsitektur Neural Network")
 
 model = Sequential([
-    Input(shape=(X_train.shape[1],)),           # Input layer: 9 fitur
-    Dense(16, activation='relu'),               # Hidden Layer 1: 16 neuron, ReLU
-    Dense(8, activation='relu'),                # Hidden Layer 2: 8 neuron, ReLU
-    Dense(1, activation='sigmoid')              # Output Layer: 1 neuron, Sigmoid
+    Input(shape=(X_train.shape[1],)),           # Input: 13 fitur
+    Dense(16, activation='relu'),               # Hidden Layer 1
+    Dense(8, activation='relu'),                # Hidden Layer 2
+    Dense(1, activation='sigmoid')              # Output: biner
 ])
 
 print(f"\n    Arsitektur Model:")
@@ -156,7 +200,6 @@ print(f"    Loss      : binary_crossentropy")
 print(f"    Metrik    : accuracy")
 
 print(f"\n[8] Training Model (100 epochs, validation_split=0.2)")
-print(f"    (Proses ini bisa memakan waktu 1-3 menit)")
 history = model.fit(
     X_train, y_train,
     epochs=100,
@@ -178,7 +221,6 @@ print(f"    Akurasi di data uji: {acc * 100:.2f}%")
 # ========================================================================
 # 10. CONFUSION MATRIX
 # ========================================================================
-# Prediksi probabilitas dan konversi ke kelas (threshold 0.5)
 y_pred_proba = model.predict(X_test, verbose=0)
 y_pred = (y_pred_proba > 0.5).astype(int).flatten()
 
@@ -190,15 +232,15 @@ print(f"     Actual 1         {cm[1][0]:5d}         {cm[1][1]:5d}")
 
 
 # ========================================================================
-# 11. VISUALISASI CONFUSION MATRIX
+# 11. TAMPILKAN CONFUSION MATRIX (HEATMAP)
 # ========================================================================
 plt.figure(figsize=(6, 4))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-            xticklabels=['Tidak Layak (0)', 'Layak (1)'],
-            yticklabels=['Tidak Layak (0)', 'Layak (1)'])
+            xticklabels=[0, 1],
+            yticklabels=[0, 1])
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
-plt.title('Confusion Matrix - Deep Learning Water Potability')
+plt.title('Confusion Matrix - Deep Learning BlaBla')
 plt.tight_layout()
 plt.savefig(os.path.join(base_dir, 'viz_confusion_matrix.png'), dpi=120, bbox_inches='tight')
 print(f"\n[11] Confusion Matrix disimpan: viz_confusion_matrix.png")
@@ -206,13 +248,10 @@ plt.show()
 
 
 # ========================================================================
-# 12. CLASSIFICATION REPORT
+# 12. LAPORAN KLASIFIKASI
 # ========================================================================
 print(f"\n[12] Classification Report:")
-print(classification_report(
-    y_test, y_pred,
-    target_names=['Tidak Layak (0)', 'Layak (1)']
-))
+print(classification_report(y_test, y_pred))
 
 
 # ========================================================================
@@ -220,7 +259,6 @@ print(classification_report(
 # ========================================================================
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-# Plot accuracy
 axes[0].plot(history.history['accuracy'], label='Train Accuracy', color='#2E7D32')
 axes[0].plot(history.history['val_accuracy'], label='Validation Accuracy', color='#C62828')
 axes[0].set_title('Model Accuracy per Epoch')
@@ -229,7 +267,6 @@ axes[0].set_ylabel('Accuracy')
 axes[0].legend()
 axes[0].grid(True, alpha=0.3)
 
-# Plot loss
 axes[1].plot(history.history['loss'], label='Train Loss', color='#2E7D32')
 axes[1].plot(history.history['val_loss'], label='Validation Loss', color='#C62828')
 axes[1].set_title('Model Loss per Epoch')
@@ -250,8 +287,9 @@ plt.show()
 print(f"\n" + "=" * 65)
 print(f"  RINGKASAN HASIL DEEP LEARNING")
 print(f"=" * 65)
-print(f"  Dataset         : Water Potability ({df.shape[0]} sampel x {df.shape[1]} kolom)")
-print(f"  Arsitektur      : Sequential MLP (9 -> 16 -> 8 -> 1)")
+print(f"  Dataset         : BlaBla.xlsx ({df.shape[0]} sampel)")
+print(f"  Jumlah Fitur    : 13 (Umur_Encoded + B-M)")
+print(f"  Arsitektur      : Sequential MLP (13 -> 16 -> 8 -> 1)")
 print(f"  Optimizer       : Adam")
 print(f"  Loss Function   : Binary Crossentropy")
 print(f"  Epochs          : 100")
